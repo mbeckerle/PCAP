@@ -104,7 +104,13 @@ The message root is 'PCAP'.
         Then 3.4
         Then 4
       -->
+
+      <!-- Internally used by ipAddressGroup -->
       <dfdl:defineVariable name="remainingDottedAddr" type="xs:string"/>
+      <dfdl:defineVariable name="priorRemainingDottedAddr" type="xs:string"/>
+
+      <!-- Parameter for ipAddressGroup -->
+      <dfdl:defineVariable name="ipAddressElement" type="xs:string"/>
 
     </xs:appinfo>
   </xs:annotation>
@@ -265,98 +271,76 @@ The message root is 'PCAP'.
     </xs:complexType>
   </xs:element>
 
-  <xs:simpleType name="IPSeg" dfdl:lengthKind="explicit" dfdl:lengthUnits="bytes" dfdl:length="1">
-    <xs:restriction base="xs:unsignedInt"/>
-  </xs:simpleType>
-
-  <xs:group name="IPSrcGrp">
-    <xs:sequence>
+ <xs:group name="IPSrcGrp">
       <xs:sequence>
         <xs:annotation><xs:appinfo source="http://www.ogf.org/dfdl/">
-          <dfdl:newVariableInstance ref="pcap:remainingDottedAddr" defaultValue='{ IPSrc }'/><!-- example 1.2.3.4 -->
+          <dfdl:newVariableInstance ref="pcap:ipAddressElement" defaultValue='{ IPSrc }'/><!-- example 1.2.3.4 -->
         </xs:appinfo></xs:annotation>
-        <xs:element name="IPSrcByte1" type="xs:unsignedByte" dfdl:outputValueCalc="{ 
-          xs:unsignedByte(fn:substring-before($pcap:remainingDottedAddr, '.'))
-          }"/>
-        <xs:sequence>
-          <xs:annotation><xs:appinfo source="http://www.ogf.org/dfdl/">
-            <dfdl:newVariableInstance ref="pcap:remainingDottedAddr" defaultValue='{ fn:substring-after($pcap:remainingDottedAddr, ".") }'/><!-- example 2.3.4 -->
-          </xs:appinfo></xs:annotation>
-          <xs:element name="IPSrcByte2" type="xs:unsignedByte" dfdl:outputValueCalc="{
-            xs:unsignedByte(fn:substring-before($pcap:remainingDottedAddr, '.'))
-            }"/>
-          <xs:sequence>
-            <xs:annotation><xs:appinfo source="http://www.ogf.org/dfdl/">
-              <dfdl:newVariableInstance ref="pcap:remainingDottedAddr" defaultValue='{ fn:substring-after($pcap:remainingDottedAddr, ".") }'/> <!-- example 3.4 -->
-            </xs:appinfo></xs:annotation>
-            <xs:element name="IPSrcByte3" type="xs:unsignedByte" dfdl:outputValueCalc="{
-              xs:unsignedByte(fn:substring-before($pcap:remainingDottedAddr, '.'))
-              }"/>
-            <xs:sequence>
-              <xs:annotation><xs:appinfo source="http://www.ogf.org/dfdl/">
-                <dfdl:newVariableInstance ref="pcap:remainingDottedAddr" defaultValue='{ fn:substring-after($pcap:remainingDottedAddr, ".") }'/><!-- example 4 -->
-              </xs:appinfo></xs:annotation>
-              <xs:element name="IPSrcByte4" type="xs:unsignedByte" dfdl:outputValueCalc="{
-                xs:unsignedByte($pcap:remainingDottedAddr)
-                }"/>
-            </xs:sequence>
-          </xs:sequence>
-        </xs:sequence>
+        <xs:element name="IPSrcString">
+          <xs:complexType>
+            <xs:group ref="pcap:IPAddressGroup"/>
+          </xs:complexType>
+        </xs:element>
       </xs:sequence>
-    </xs:sequence>
   </xs:group>
 
+
   <xs:group name="IPDestGrp">
-    <xs:sequence>
-      <!-- VERY PAINFUL.
-           See comment in IPDestGrp.
-
-           Also, its a shame we have to have both IPSrcGrp and IPDestGrp that are completely
-           redundant, but we do because they refer up and outward to ../IPSrc and ../IPDest
-           respectively.
-
-           There is no way to parameterize this.
-
-           Variables won't work because these are forward references.
-
-           If variables were evaluated with forward referencing, then this would work
-           but we would need newVariableInstance. The backpath to ../IPDest below would be replaced
-           by $IPAddr, which would be a newVariableInstance for each use of this group.
-           For the IPSrc, it would be setVariable set to ../IPSrc. For the IPDest, it would be (a different instance)
-           set to ../IPDest.
-
-           So the priority of newVariableInstance, and a clarification to DFDL that variables are
-           evaluated forward-referencing when unparsing is needed.
-
-           That and we should propose Let-Return expressions as part of the DFDL expression language also.
-
-            -->
       <xs:sequence>
         <xs:annotation><xs:appinfo source="http://www.ogf.org/dfdl/">
-          <dfdl:newVariableInstance ref="pcap:remainingDottedAddr" defaultValue='{ IPDest }'/><!-- example 1.2.3.4 -->
+          <dfdl:newVariableInstance ref="pcap:ipAddressElement" defaultValue='{ IPDest }'/><!-- example 1.2.3.4 -->
         </xs:appinfo></xs:annotation>
-        <xs:element name="IPDestByte1" type="xs:unsignedByte" dfdl:outputValueCalc="{
+        <xs:element name="IPDestString">
+          <xs:complexType>
+            <xs:group ref="pcap:IPAddressGroup"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+  </xs:group>
+
+
+ <xs:group name="IPAddressGroup">
+      <xs:annotation><xs:documentation><![CDATA[
+   
+      This grooup is a reusable subroutine of DFDL. It parses a string like 1.2.3.4 into 4 integers named Byte1, Byte2, Byte3, Byte4
+      containing the "." separated integers. 
+      
+      This is used to unparse IP addresses expressed in the dotted notation that is common. 
+
+      There is one parameter. Users must bind the $pcap:ipAddressElement variable to the string to be so parsed. 
+
+      ]]></xs:documentation></xs:annotation>
+    <xs:sequence>
+      <xs:sequence>
+        <xs:annotation><xs:appinfo source="http://www.ogf.org/dfdl/">
+          <dfdl:newVariableInstance ref="pcap:priorRemainingDottedAddr" defaultValue='{ $pcap:ipAddressElement }'/><!-- example 1.2.3.4 -->
+          <dfdl:newVariableInstance ref="pcap:remainingDottedAddr" defaultValue='{ $pcap:priorRemainingDottedAddr }'/><!-- example 1.2.3.4 -->
+        </xs:appinfo></xs:annotation>
+        <xs:element name="Byte1" type="xs:unsignedByte" dfdl:outputValueCalc="{
           xs:unsignedByte(fn:substring-before($pcap:remainingDottedAddr, '.'))
           }"/>
         <xs:sequence>
           <xs:annotation><xs:appinfo source="http://www.ogf.org/dfdl/">
-            <dfdl:newVariableInstance ref="pcap:remainingDottedAddr" defaultValue='{ fn:substring-after($pcap:remainingDottedAddr, ".") }'/><!-- example 2.3.4 -->
+            <dfdl:newVariableInstance ref="pcap:priorRemainingDottedAddr" defaultValue='{ $pcap:remainingDottedAddr }'/><!-- example 1.2.3.4 -->
+            <dfdl:newVariableInstance ref="pcap:remainingDottedAddr" defaultValue='{ fn:substring-after($pcap:priorRemainingDottedAddr, ".") }'/><!-- example 2.3.4 -->
           </xs:appinfo></xs:annotation>
-          <xs:element name="IPDestByte2" type="xs:unsignedByte" dfdl:outputValueCalc="{
+          <xs:element name="Byte2" type="xs:unsignedByte" dfdl:outputValueCalc="{
            xs:unsignedByte(fn:substring-before($pcap:remainingDottedAddr, '.'))
            }"/>
           <xs:sequence>
             <xs:annotation><xs:appinfo source="http://www.ogf.org/dfdl/">
-              <dfdl:newVariableInstance ref="pcap:remainingDottedAddr" defaultValue='{ fn:substring-after($pcap:remainingDottedAddr, ".") }'/><!-- example 3.4 -->
+              <dfdl:newVariableInstance ref="pcap:priorRemainingDottedAddr" defaultValue='{ $pcap:remainingDottedAddr }'/><!-- example 2.3.4 -->
+              <dfdl:newVariableInstance ref="pcap:remainingDottedAddr" defaultValue='{ fn:substring-after($pcap:priorRemainingDottedAddr, ".") }'/><!-- example 3.4 -->
             </xs:appinfo></xs:annotation>
-            <xs:element name="IPDestByte3" type="xs:unsignedByte" dfdl:outputValueCalc="{
+            <xs:element name="Byte3" type="xs:unsignedByte" dfdl:outputValueCalc="{
               xs:unsignedByte(fn:substring-before($pcap:remainingDottedAddr, '.'))
               }"/>
             <xs:sequence>
               <xs:annotation><xs:appinfo source="http://www.ogf.org/dfdl/">
-                <dfdl:newVariableInstance ref="pcap:remainingDottedAddr" defaultValue='{ fn:substring-after($pcap:remainingDottedAddr, ".") }'/><!-- example 4 -->
+                <dfdl:newVariableInstance ref="pcap:priorRemainingDottedAddr" defaultValue='{ $pcap:remainingDottedAddr }'/><!-- example 3.4 -->
+                <dfdl:newVariableInstance ref="pcap:remainingDottedAddr" defaultValue='{ fn:substring-after($pcap:priorRemainingDottedAddr, ".") }'/><!-- example 4 -->
               </xs:appinfo></xs:annotation>
-              <xs:element name="IPDestByte4" type="xs:unsignedByte" dfdl:outputValueCalc="{
+              <xs:element name="Byte4" type="xs:unsignedByte" dfdl:outputValueCalc="{
                 xs:unsignedByte($pcap:remainingDottedAddr)
                 }"/>
             </xs:sequence>
@@ -401,9 +385,9 @@ The message root is 'PCAP'.
                 else -1 }"/>
               <xs:element name="Checksum" type="pcap:bit" dfdl:length="16" />
               <xs:sequence dfdl:hiddenGroupRef="pcap:IPSrcGrp"/>
-              <xs:element name="IPSrc" type="xs:string" dfdl:inputValueCalc="{ fn:concat(../IPSrcByte1, '.', ../IPSrcByte2, '.', ../IPSrcByte3, '.', ../IPSrcByte4) }"/>
+              <xs:element name="IPSrc" type="xs:string" dfdl:inputValueCalc="{ fn:concat(../IPSrcString/Byte1, '.', ../IPSrcString/Byte2, '.', ../IPSrcString/Byte3, '.', ../IPSrcString/Byte4) }"/>
               <xs:sequence dfdl:hiddenGroupRef="pcap:IPDestGrp"/>
-              <xs:element name="IPDest" type="xs:string" dfdl:inputValueCalc="{ fn:concat(../IPDestByte1, '.', ../IPDestByte2, '.', ../IPDestByte3, '.', ../IPDestByte4) }"/>
+              <xs:element name="IPDest" type="xs:string" dfdl:inputValueCalc="{ fn:concat(../IPDestString/Byte1, '.', ../IPDestString/Byte2, '.', ../IPDestString/Byte3, '.', ../IPDestString/Byte4) }"/>
             </xs:sequence>
           </xs:complexType>
         </xs:element>
